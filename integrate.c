@@ -50,7 +50,7 @@ void closeChild(struct Connection* con, struct SegmentList segList, int child)
 	if (seg != NULL)
 		seg->child = 0;
 
-	getSeg(segList, -(child + 1))->child = 0;
+	seg = getSeg(segList, -(child + 1));
 	if (seg != NULL)
 		seg->child = 0;
 
@@ -241,7 +241,9 @@ void childCalcSums(int rd, int wr)
 	struct ChildAnswer ans;
 	int bytesWritten;
 	int bytesRead;
-	
+
+	signal(SIGPIPE, SIG_IGN);
+
 	while ((bytesRead = read(rd, &rq, sizeof(rq))))
 	{
 		if (bytesRead != sizeof(rq))

@@ -56,13 +56,22 @@ int serverThread(int threadNumber)
 		fprintf(stderr, "Calculating stuff...\n");
 
 		childCalcSums(fd, fd);
+
+		if (errno != 0)
+		{
+			fprintf(stderr, "An error has occured during calculation: %s (%d)\n", strerror(errno), errno);
+			errno = 0;
+		}
+
 		close(fd);
-		
+
+/*
 		if (errno != 0)
 		{
 			fprintf(stderr, "Thread %d: error %d: %s", threadNumber, errno, strerror(errno));
 			return EXIT_FAILURE;
 		}
+*/
 
 		fprintf(stderr, "Finished calculations. Waiting for further jobs.\n");
 	}
