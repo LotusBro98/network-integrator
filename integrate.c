@@ -19,55 +19,13 @@
 #include "list.h"
 #include "general.h"
 #include "cpuconf.h"
-
-
-#define BEST_FINENESS 1e-12
+#include "integrate.h"
 
 enum requestOrder { RQ_FIRST, RQ_LAST };
 
-inline double f(double x)
+struct Connection makeConnection(int rd, int wr)
 {
-	return 4 * x * x * x;
-}
-
-struct Connection
-{
-	int rd;
-	int wr;
-	int waiting;
-	int closed;
-};
-
-
-void createChildren(struct Connection* *con, int nChildren);
-void destroyChildren(struct Connection* con, int nChildren);
-
-void calcSums(double left, double right, double* I, double* eps, enum ErrorCode* error);
-void childCalcSums(int rd, int wr, int child);
-
-double parentIntegrate(struct Connection* con, int nChildren, double left, double right, double maxDeviation, enum ErrorCode* error);
-
-
-int main(int argc, char* argv[])
-{
-	double left, right, maxDeviation;
-	int nChildren;
-	enum ErrorCode error;
-
-	parseArgs(argc, argv, &left, &right, &nChildren, &maxDeviation);
-
-	struct Connection* con;
-	createChildren(&con, nChildren);
-
-	double I = parentIntegrate(con, nChildren, left, right, maxDeviation, &error);
-	if (error == ERR_NO_ERROR)
-		printAnswer(left, right, maxDeviation, I);
-	else
-		explainError(error);
-
-	destroyChildren(con, nChildren);
-
-	return 0;
+	return (struct Connection) {.rd = rd, .wr = wr, .closed = FALSE, .waiting = TRUE};
 }
 
 void makeRequest(struct UnstudiedSegment* seg, struct CalcRequest* rq, int child, enum requestOrder order, double dens)
@@ -96,7 +54,7 @@ void closeChild(struct Connection* con, struct SegmentList segList, int child)
 	if (seg != NULL)
 		seg->child = 0;
 
-	con[child].closed = true;
+	con[child].closed = TRUE;
 	//fprintf(stderr, "Lost connection with child %d: %s (%d)\n", child, strerror(errno), errno);
 	fprintf(stderr, "Lost connection with child %d\n", child);
 }
@@ -117,7 +75,7 @@ int child, enum requestOrder order, double dens, enum ErrorCode* error)
 		*error = ERR_CHILD_DISCONNECTED;
 	}
 
-	con[child].waiting = false;
+	con[child].waiting = FALSE;
 }
 
 void handleSegmentData
@@ -143,7 +101,7 @@ void handleSegmentData
 		seg = getSeg(segList, 0);
 		if (seg == NULL)
 		{
-			con[child].waiting = true;
+			con[child].waiting = TRUE;
 			return;
 		}
 		
@@ -159,8 +117,8 @@ int isClosed(struct Connection* con, int nChildren)
 {
 	for (int i = 0; i < nChildren; i++)
 		if (!con[i].closed)
-			return false;
-	return true;
+			return FALSE;
+	return TRUE;
 }
 
 double parentIntegrate(struct Connection* con, int nChildren, double left, double right, double maxDeviation, enum ErrorCode* error)
@@ -216,47 +174,6 @@ double parentIntegrate(struct Connection* con, int nChildren, double left, doubl
 	return I;
 }
 
-void attachChildToCPU(int child)
-{
-	int cpu = getCPUForChild(child);
-	destroyCPUData();
-
-	cpu_set_t set;
-	CPU_ZERO(&set);
-	CPU_SET(cpu, &set);
-	sched_setaffinity(0, sizeof(set), &set);
-	if (errno != 0)
-	{
-		fprintf(stderr, "Failed to attach child %d to CPU %d: %s (%d)\n", child, cpu, strerror(errno), errno);
-		errno = 0;
-	}
-}
-
-void childCalcSums(int rd, int wr, int child)
-{
-	struct CalcRequest rq;
-	struct ChildAnswer ans;
-	int bytesWritten;
-	int bytesRead;
-	
-	attachChildToCPU(child);
-
-	while ((bytesRead = read(rd, &rq, sizeof(rq))))
-	{
-		if (bytesRead != sizeof(rq))
-			break;
-
-		gettimeofday(&ans.received, NULL);
-		calcSums(rq.left, rq.right, &(ans.S), &(ans.eps), &(ans.error));
-		gettimeofday(&ans.sentBack, NULL);
-
-		bytesWritten = write(wr, &ans, sizeof(ans));
-		gettimeofday(&ans.sent, NULL);
-		if (errno != 0 || bytesWritten != sizeof(ans))
-			break;
-	}
-}
-
 void calcSums(double left, double right, double* I, double* eps, enum ErrorCode* error)
 {
 	const int nSegments = 0x1000;
@@ -282,34 +199,25 @@ void calcSums(double left, double right, double* I, double* eps, enum ErrorCode*
 		register double f1, f2 = 0; 
 		register double x;
 	
-		/*
-		for (register int i = 1; i <= nSubSegments; i++)
-		{
-			f1 = f2;
-			x = l + i * (r - l) / nSubSegments;
-			f2 = f(x) - fleft - i * (fright - fleft) / nSubSegments; 
-	
-			dI += (f1 + f2) / 2;
-			dEps += f1 > f2 ? f1 - f2 : f2 - f1;
-		}
-		*/
-
 		double dt = 1.0 / nSubSegments;
 		for (register double t = dt; t <= 1; t += dt)
 		{
 			f1 = f2;
 
+			//x = l + t * (r - l);
 			x = r;
 			x -= l;
 			x *= t;
 			x += l;
 
+			//f2 = f(x) - fleft - t * (fright - fleft);
 			f2 = fleft;
 			f2 -= fright;
 			f2 *= t;
 			f2 -= fleft;
 			f2 += f(x);
 
+			//dI += (f1 + f2);
 			dI += f1;
 			dI += f2;
 
@@ -327,72 +235,25 @@ void calcSums(double left, double right, double* I, double* eps, enum ErrorCode*
 	*error = ERR_NO_ERROR;
 }
 
-void createChildren(struct Connection* *conp, int nChildren)
+void childCalcSums(int rd, int wr)
 {
-	int childPipes[2];
-	int pipefd[2];
-	int code;
-
-	initCPUData();
-
-	*conp = malloc(sizeof(struct Connection) * nChildren);
-	if (conp == NULL)
-		exitErrorMsg("Failed to allocate memory.\n");
-
-	struct Connection* con = *conp;
-
-	for (int i = 0; i < nChildren; i++)
-	{
-		code = pipe(pipefd);
-		con[i].wr = pipefd[1];
-		childPipes[0] = pipefd[0];
-		
-		code = pipe(pipefd);
-		con[i].rd = pipefd[0];
-		childPipes[1] = pipefd[1];
-
-		con[i].closed = false;
-		con[i].waiting = true;
-
-		if (code != 0)
-		{
-			fprintf(stderr, "Failed to create pipes.\n");
-			kill(0, SIGTERM);
-		}
-
-		if (fork() == 0)
-		{
-			int child = i;
-			for (; i >= 0; i--) {
-				close(con[i].rd);
-				close(con[i].wr);
-			}
-			free(con);
-
-			childCalcSums(childPipes[0], childPipes[1], child);
-			exit(EXIT_SUCCESS);
-		}
-		
-		if (errno != 0)
-		{
-			fprintf(stderr, "Failed to create new child process.\n");
-			kill(0, SIGTERM);
-		}
-		close(childPipes[0]);
-		close(childPipes[1]);
-	}
-}
-
-void destroyChildren(struct Connection* con, int nChildren)
-{
-	for (int i = 0; i < nChildren; i++)
-	{
-		close(con[i].rd);
-		close(con[i].wr);
-	}
-	free(con);
+	struct CalcRequest rq;
+	struct ChildAnswer ans;
+	int bytesWritten;
+	int bytesRead;
 	
-	for (int i = 0; i < nChildren; i++)
-		wait(NULL);
-}
+	while ((bytesRead = read(rd, &rq, sizeof(rq))))
+	{
+		if (bytesRead != sizeof(rq))
+			break;
 
+		gettimeofday(&ans.received, NULL);
+		calcSums(rq.left, rq.right, &(ans.S), &(ans.eps), &(ans.error));
+		gettimeofday(&ans.sentBack, NULL);
+
+		bytesWritten = write(wr, &ans, sizeof(ans));
+		gettimeofday(&ans.sent, NULL);
+		if (errno != 0 || bytesWritten != sizeof(ans))
+			break;
+	}
+}

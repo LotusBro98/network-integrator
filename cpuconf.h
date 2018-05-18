@@ -5,4 +5,6 @@ void initCPUData();
 void destroyCPUData();
 int getCPUForChild(int child);
 
+void attachChildToCPU(int child);
+
 #endif

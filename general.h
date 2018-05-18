@@ -10,6 +10,14 @@ enum ErrorCode {
 	ERR_OTHER
 };
 
+struct Connection
+{
+	int rd;
+	int wr;
+	int waiting;
+	int closed;
+};
+
 struct CalcRequest
 {
 	double left;
@@ -31,8 +39,8 @@ struct ChildAnswer
 	enum ErrorCode error;	
 };
 
-#define true 1
-#define false 0
+#define TRUE 1
+#define FALSE 0
 
 /*
 #define MAX_SEGMENTS_PER_PROCESS 0x10000000

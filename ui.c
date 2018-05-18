@@ -9,7 +9,7 @@
 
 struct timeval start;
 struct timeval lastPrint;
-int firstTime = true;
+int firstTime = TRUE;
 
 long getMillis(struct timeval tv)
 {
@@ -94,7 +94,7 @@ void printProgress(struct SegmentList segList, double left, double right, double
 		lastPrint = tv;
 
 	if (firstTime)
-		firstTime = false;
+		firstTime = FALSE;
 	else
 	{
 		fprintf(stderr, "\033M");
@@ -177,42 +177,47 @@ void printTimes(struct ChildAnswer* answers, int nChildren)
 	}
 }
 
-void parseArgs(int argc, char* argv[], double* left, double* right, int* nChildren, double* maxDeviation)
+int parseArgs(int argc, char* argv[], double* left, double* right, int* nChildren, double* maxDeviation)
 {
-	if (argc == 1)
-		exitErrorMsg(
-"\n Usage: ./integrate <from> <to> [nChildren] [maxDeviation]\n\n"/*\
-Calculates definite integral of function 'func', specified in 'libfunction.so'.\n\
-'libfunction.so' is compiled from 'function.c'. To change the function, edit 'function.c', then run 'make'.\n\
-All parameters except <nChildren> are of type double.\n"*/
-		);
-	else if (argc < 3 || argc > 6)
-		exitErrorMsg("Wrong format. Type './integrate' for help.\n");
+	if (argc < 3) goto printUsage;
 
-	char* endptr;
-	*left  = strtod(argv[1], &endptr);
-	if (errno != 0 || (unsigned)(endptr - argv[1]) != strlen(argv[1]))
-		exitErrorMsg("Failed to convert 1st argument to double.\n");
-
-	*right = strtod(argv[2], &endptr);
-	if (errno != 0 || (unsigned)(endptr - argv[2]) != strlen(argv[2]))
-		exitErrorMsg("Failed to convert 2nd argument to double.\n");
-
-	if (argc >= 4)
+	if (strcmp(argv[1], "server") == 0)	//Server
 	{
-		*nChildren = strtol(argv[3], &endptr, 10);
-		if (errno != 0 || (unsigned)(endptr - argv[3]) != strlen(argv[3]))
-			exitErrorMsg("Failed to convert 3rd argument to int.\n");
+		*nChildren = atoi(argv[2]);
+		if (errno != 0) goto printUsage;	
+		return 1;
 	}
-		else *nChildren = 1;
-
-	if (argc >= 5)
+	else if (strcmp(argv[1], "client") == 0) //Client
 	{
-		*maxDeviation = strtod(argv[4], &endptr);
-		if (errno != 0 || (unsigned)(endptr - argv[4]) != strlen(argv[4]))
-			exitErrorMsg("Failed to convert 4th argument to double.\n");
+		*nChildren = atoi(argv[2]);
+		if (errno != 0) goto printUsage;	
+
+		if (argc == 4)	goto printUsage;
+
+		if (argc < 5) return 0;
+
+		*left = atof(argv[3]);
+		*right = atof(argv[4]);
+		if (errno != 0) goto printUsage;
+
+		if (argc < 6) return 0;
+
+		*maxDeviation = atof(argv[5]);
+		if (errno != 0) goto printUsage;
+
+		if (argc > 6) goto printUsage;
+
+		return 0;
 	}
-		else *maxDeviation = 0.000001;
+
+	printUsage:
+	exitErrorMsg(
+"\n\
+Client:		./net-integrate client <nServers> [<from> <to>] [maxDeviation]\n\
+Server:		./net-integrate	server <nThreads>\n\n\
+"
+	);
+	return 0;
 }
 
 void explainError(enum ErrorCode error)

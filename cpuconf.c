@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 2
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -7,6 +8,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sched.h>
 
 #include "cpuconf.h"
 
@@ -15,6 +17,22 @@ int maxCore;
 int* coreForCPU;
 int* CPUOrder;
 int nCPUs;
+
+
+void attachChildToCPU(int child)
+{
+	int cpu = getCPUForChild(child);
+
+	cpu_set_t set;
+	CPU_ZERO(&set);
+	CPU_SET(cpu, &set);
+	sched_setaffinity(0, sizeof(set), &set);
+	if (errno != 0)
+	{
+		fprintf(stderr, "Failed to attach child %d to CPU %d: %s (%d)\n", child, cpu, strerror(errno), errno);
+		errno = 0;
+	}
+}
 
 void parseCoresForCPU()
 {
