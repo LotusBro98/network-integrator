@@ -49,6 +49,8 @@ int serverThread(int threadNumber)
 
 		if (fd == -1)
 		{
+			fprintf(stderr, "errno: %s (%d)\n", strerror(errno), errno);
+			close(fd);
 			errno = 0;
 			continue;
 		}

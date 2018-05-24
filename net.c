@@ -15,10 +15,12 @@
 #include "net.h"
 #include "integrate.h"
 
-#define LISTEN_PORT 4000
-#define BROADCAST_PORT 4001
+#define LISTEN_PORT 25435
+#define BROADCAST_PORT 25440
 #define TIMEOUT 1000
 #define RECALL_ATTEMPTS 10
+
+const char * hello = "Hello, my dear friend.\n";
 
 void sendBroadcast(int nServers)
 {
@@ -32,12 +34,13 @@ void sendBroadcast(int nServers)
 
 	setsockopt(broadcast_socket, SOL_SOCKET, SO_BROADCAST, &true, sizeof(true));
 
-	char hello[6] = "Hello";
+	char checkbuf[strlen(hello) + 1];
+	strcpy(checkbuf, hello);
 	
 	for (int i = 0; i < nServers; i++)
 	{
 		addr.sin_port = htons(BROADCAST_PORT + i);
-		sendto(broadcast_socket, hello, sizeof(hello), 0, (struct sockaddr*) &addr, sizeof(addr));
+		sendto(broadcast_socket, checkbuf, sizeof(checkbuf), 0, (struct sockaddr*) &addr, sizeof(addr));
 	}
 
 	close(broadcast_socket);
@@ -119,7 +122,7 @@ int openConnections(struct Connection** conp, int nServers)
 		}
 
 		con[i] = makeConnection(fd, fd);
-//		fprintf(stderr, "Connected to server %d at address %s:%hu\n", i, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+		fprintf(stderr, "Connected to server %d at address %s:%hu\n", i, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
 	}
 
 	close(listen_socket);	
@@ -147,7 +150,6 @@ int serverWaitForJob(int threadNumber)
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	addr.sin_port = htons(BROADCAST_PORT + threadNumber);
 
-	char hello[6];
 	socklen_t addr_len = sizeof(addr);
 
 	bind(fd, (struct sockaddr*) &addr, sizeof(addr));
@@ -158,12 +160,22 @@ int serverWaitForJob(int threadNumber)
 		kill(0, SIGTERM);
 	}
 
+	waitForInvitation:
 	fprintf(stderr, "Waiting for invitation from client...\n");
-	recvfrom(fd, hello, sizeof(hello), 0, (struct sockaddr*) &addr, &addr_len);
+	char checkbuf[strlen(hello) + 1];
+	recvfrom(fd, checkbuf, sizeof(checkbuf), 0, (struct sockaddr*) &addr, &addr_len);
+	if (strcmp(checkbuf, hello) != 0)
+	{
+		if (errno != 0)
+			goto errReturn;
+		fprintf(stderr, 
+"\033[91m\033[1m\
+Someone attempted to connect to our mining server!\033[0m \
+IP: %s:%hu\n", 
+				inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+		goto waitForInvitation;
+	}
 	addr.sin_port = htons(LISTEN_PORT);
-
-	if (errno != 0)
-		goto errReturn;
 
 	close(fd);
 

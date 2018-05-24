@@ -36,15 +36,16 @@ void attachChildToCPU(int child)
 
 void parseCoresForCPU()
 {
-	FILE* info = popen("lscpu -p | tail -n-4", "r");
+	FILE* info = popen("lscpu -p | tail -n +5", "r");
 
-	int cpu, core, socket, node, l1d, l1i, l2;
+	int cpu, core;
+	char bolt[256];
 
 	maxCPU = -1;
 	maxCore = -1;
 	coreForCPU = NULL;
 
-	while(fscanf(info, "%d,%d,%d,%d,,%d,%d,%d", &cpu, &core, &socket, &node, &l1d, &l1i, &l2) > 0) 
+	while(fscanf(info, "%d,%d%s", &cpu, &core, bolt) > 0) 
 	{
 		if (cpu > maxCPU)
 		{
