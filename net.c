@@ -21,6 +21,7 @@
 #define RECALL_ATTEMPTS 10
 
 const char * hello = "Hello, my dear friend.\n";
+const struct timeval SOCKET_IO_TIMEOUT = {.tv_sec = 1, .tv_usec = 0};
 
 void sendBroadcast(int nServers)
 {
@@ -57,6 +58,15 @@ int configureListenSocket(int nServers)
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	setsockopt(listen_socket, SOL_SOCKET, SO_REUSEADDR, &true, sizeof(true));
+	setsockopt(listen_socket, SOL_SOCKET, SO_RCVTIMEO, &SOCKET_IO_TIMEOUT, sizeof(SOCKET_IO_TIMEOUT));
+	setsockopt(listen_socket, SOL_SOCKET, SO_SNDTIMEO, &SOCKET_IO_TIMEOUT, sizeof(SOCKET_IO_TIMEOUT));
+	
+	if (errno != 0)
+	{
+		fprintf(stderr, "Failed to set listen socket options: %s (%d)\n", strerror(errno), errno);
+		close(listen_socket);
+		return -1;
+	}
 
 	bind(listen_socket, (struct sockaddr*) &addr, sizeof(addr));
 	if (errno != 0)
@@ -180,6 +190,17 @@ IP: %s:%hu\n",
 	close(fd);
 
 	fd = socket(PF_INET, SOCK_STREAM, 0);
+
+	setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &SOCKET_IO_TIMEOUT, sizeof(SOCKET_IO_TIMEOUT));
+	setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &SOCKET_IO_TIMEOUT, sizeof(SOCKET_IO_TIMEOUT));
+
+	if (errno != 0)
+	{
+		fprintf(stderr, "Failed to set socket options: %s (%d)\n", strerror(errno), errno);
+		close(fd);
+		return -1;
+	}
+
 
 	fprintf(stderr, "Connecting to client at address %s:%hu\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
 	connect(fd, (struct sockaddr*) &addr, addr_len);

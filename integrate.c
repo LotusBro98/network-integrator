@@ -123,6 +123,7 @@ int isClosed(struct Connection* con, int nChildren)
 
 double parentIntegrate(struct Connection* con, int nChildren, double left, double right, double maxDeviation, enum ErrorCode* error)
 {
+	struct timeval SOCKET_IO_TIMEOUT;
 	double dens = maxDeviation / (right - left);
 	struct ChildAnswer ans;
 	struct SegmentList segList = initList(left, right);
@@ -146,7 +147,8 @@ double parentIntegrate(struct Connection* con, int nChildren, double left, doubl
 			if (!(con[i].closed))
 				FD_SET(con[i].rd, &rd);
 
-		select(nChildren * 2 + 10, &rd, NULL, NULL, NULL);
+		SOCKET_IO_TIMEOUT.tv_sec = 1;
+		select(nChildren * 2 + 10, &rd, NULL, NULL, &SOCKET_IO_TIMEOUT);
 
 		for (int i = 0; i < nChildren; i++)
 			if (FD_ISSET(con[i].rd, &rd))
@@ -244,6 +246,8 @@ void childCalcSums(int rd, int wr)
 
 	signal(SIGPIPE, SIG_IGN);
 
+	int count = 0;
+
 	while ((bytesRead = read(rd, &rq, sizeof(rq))))
 	{
 		if (bytesRead != sizeof(rq))
@@ -252,6 +256,9 @@ void childCalcSums(int rd, int wr)
 		gettimeofday(&ans.received, NULL);
 		calcSums(rq.left, rq.right, &(ans.S), &(ans.eps), &(ans.error));
 		gettimeofday(&ans.sentBack, NULL);
+
+		if (count++ == 1000)
+			sleep(10);
 
 		bytesWritten = write(wr, &ans, sizeof(ans));
 		gettimeofday(&ans.sent, NULL);
