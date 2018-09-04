@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -58,8 +59,14 @@ int configureListenSocket(int nServers)
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	setsockopt(listen_socket, SOL_SOCKET, SO_REUSEADDR, &true, sizeof(true));
-	setsockopt(listen_socket, SOL_SOCKET, SO_RCVTIMEO, &SOCKET_IO_TIMEOUT, sizeof(SOCKET_IO_TIMEOUT));
-	setsockopt(listen_socket, SOL_SOCKET, SO_SNDTIMEO, &SOCKET_IO_TIMEOUT, sizeof(SOCKET_IO_TIMEOUT));
+
+	int one = 1;
+
+	setsockopt(listen_socket, SOL_SOCKET, SO_KEEPALIVE, &true, sizeof(true));
+	setsockopt(listen_socket, IPPROTO_TCP, TCP_KEEPCNT, &one, sizeof(one));
+	setsockopt(listen_socket, IPPROTO_TCP, TCP_KEEPIDLE, &one, sizeof(one));
+	setsockopt(listen_socket, IPPROTO_TCP, TCP_KEEPINTVL, &one, sizeof(one));
+
 	
 	if (errno != 0)
 	{
@@ -152,6 +159,7 @@ void closeConnections(struct Connection* con, int nServers)
 
 int serverWaitForJob(int threadNumber)
 {
+	int true = 1;
 	struct sockaddr_in addr;
 
 	int fd = socket(PF_INET, SOCK_DGRAM, 0);
@@ -191,8 +199,12 @@ IP: %s:%hu\n",
 
 	fd = socket(PF_INET, SOCK_STREAM, 0);
 
-	setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &SOCKET_IO_TIMEOUT, sizeof(SOCKET_IO_TIMEOUT));
-	setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &SOCKET_IO_TIMEOUT, sizeof(SOCKET_IO_TIMEOUT));
+	int one = 1;
+
+	setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &true, sizeof(true));
+	setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &one, sizeof(one));
+	setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &one, sizeof(one));
+	setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &one, sizeof(one));
 
 	if (errno != 0)
 	{
