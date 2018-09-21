@@ -256,10 +256,6 @@ void childCalcSums(int rd, int wr)
 		gettimeofday(&ans.received, NULL);
 		calcSums(rq.left, rq.right, &(ans.S), &(ans.eps), &(ans.error));
 		gettimeofday(&ans.sentBack, NULL);
-		sleep(100);
-
-		if (count++ == 1000)
-			sleep(10);
 
 		bytesWritten = write(wr, &ans, sizeof(ans));
 		gettimeofday(&ans.sent, NULL);
