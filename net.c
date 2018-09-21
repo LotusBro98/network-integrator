@@ -22,7 +22,6 @@
 #define RECALL_ATTEMPTS 10
 
 const char * hello = "Hello, my dear friend.\n";
-const struct timeval SOCKET_IO_TIMEOUT = {.tv_sec = 1, .tv_usec = 0};
 
 void sendBroadcast(int nServers)
 {
@@ -205,6 +204,10 @@ IP: %s:%hu\n",
 	setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &one, sizeof(one));
 	setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &one, sizeof(one));
 	setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &one, sizeof(one));
+
+	struct timeval socket_io_timeout = {SOCKET_IO_TIMEOUT_SEC, 0};
+	setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &socket_io_timeout, sizeof(socket_io_timeout));
+	setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &socket_io_timeout, sizeof(socket_io_timeout));
 
 	if (errno != 0)
 	{

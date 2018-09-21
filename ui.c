@@ -234,10 +234,13 @@ Further calculations will lead to accuracy loss or, possibly, to a deadlock. \
 Please, try running the program again with bigger <maxDeviation>.\n\n");
 			break;
 		case ERR_OTHER:
-			fprintf(stderr, "An error occured while integrating the function. Try relaunching the program.\n");
+			fprintf(stderr, "An error occured while integrating the function: %s (%d).\n Try relaunching the program.\n", strerror(errno), errno);
 			break;
 		case ERR_CHILD_DISCONNECTED:
 			fprintf(stderr, "Lost connection with one of calculating processes. Relaunching the program may help.\n");
+			break;
+		case ERR_TIMEOUT:
+			fprintf(stderr, "No response from any child within timeout. Exiting.\n");
 			break;
 	}
 }

@@ -7,6 +7,7 @@ enum ErrorCode {
 	ERR_NO_ERROR,
 	ERR_BEST_FINENESS_REACHED,
 	ERR_CHILD_DISCONNECTED,
+	ERR_TIMEOUT,
 	ERR_OTHER
 };
 
@@ -41,6 +42,8 @@ struct ChildAnswer
 
 #define TRUE 1
 #define FALSE 0
+
+#define SOCKET_IO_TIMEOUT_SEC 10
 
 /*
 #define MAX_SEGMENTS_PER_PROCESS 0x10000000
